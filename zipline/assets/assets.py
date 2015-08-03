@@ -460,16 +460,34 @@ class AssetFinder(object):
             root symbol.
         """
         c = self.conn.cursor()
-        t = {'root_symbol': root_symbol,
-             'as_of_date': as_of_date.value,
-             'knowledge_date': knowledge_date.value}
-        c.execute("""
-        select sid from futures
-        where root_symbol=:root_symbol
-        and :as_of_date < notice_date
-        and start_date <= :knowledge_date
-        order by notice_date asc
-        """, t)
+
+        if as_of_date is pd.NaT and knowledge_date is pd.NaT:
+            # If both as_of_date and knowledge_date are NaT, get all
+            # contracts for this root symbol.
+            t = {'root_symbol': root_symbol}
+            c.execute("""
+            select sid from futures
+            where root_symbol=:root_symbol
+            order by notice_date asc
+            """, t)
+        else:
+            if knowledge_date is pd.NaT:
+                # Use as_of_date for knowledge_date if knowledge_date is NaT
+                t = {'root_symbol': root_symbol,
+                     'as_of_date': as_of_date.value,
+                     'knowledge_date': as_of_date.value}
+            else:
+                t = {'root_symbol': root_symbol,
+                     'as_of_date': as_of_date.value,
+                     'knowledge_date': knowledge_date.value}
+
+            c.execute("""
+            select sid from futures
+            where root_symbol=:root_symbol
+            and :as_of_date < notice_date
+            and start_date <= :knowledge_date
+            order by notice_date asc
+            """, t)
         sids = [r[0] for r in c.fetchall()]
         if not sids:
             # Check if root symbol exists.
